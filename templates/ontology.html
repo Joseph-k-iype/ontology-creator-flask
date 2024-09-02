@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>{{ ontology.name }}</h2>
+
+    <!-- Section for Adding Namespaces -->
+    <div class="editor">
+        <h3>Add Namespace</h3>
+        <form id="addNamespaceForm">
+            <input type="text" id="namespaceName" name="namespace_name" placeholder="Namespace Name" required>
+            <input type="text" id="namespaceUri" name="namespace_uri" placeholder="Namespace URI" required>
+            <input type="hidden" name="ontology_id" value="{{ ontology.id }}">
+            <button type="submit">Add Namespace</button>
+        </form>
+    </div>
+
+    <!-- Section for Adding Classes -->
+    <div class="editor">
+        <h3>Add Class</h3>
+        <form id="addClassForm">
+            <input type="text" id="className" name="class_name" placeholder="Class Name" required>
+            <select id="parentClass" name="parent_id">
+                <option value="">No Parent (Top-level class)</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="namespaceSelect" name="custom_namespace">
+                <option value="">Select Namespace</option>
+                {% for ns in namespaces %}
+                    <option value="{{ ns.uri }}">{{ ns.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="ontology_id" value="{{ ontology.id }}">
+            <button type="submit">Add Class</button>
+        </form>
+    </div>
+
+    <!-- Section for Adding Subclasses -->
+    <div class="editor">
+        <h3>Add Subclass</h3>
+        <form id="addSubclassForm">
+            <input type="text" id="subclassName" name="class_name" placeholder="Subclass Name" required>
+            <select id="parentClassSubclass" name="parent_class_id" required>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="namespaceSelectSubclass" name="custom_namespace">
+                <option value="">Select Namespace</option>
+                {% for ns in namespaces %}
+                    <option value="{{ ns.uri }}">{{ ns.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="ontology_id" value="{{ ontology.id }}">
+            <button type="submit">Add Subclass</button>
+        </form>
+    </div>
+
+    <!-- Section for Adding Properties -->
+    <div class="editor">
+        <h3>Add Property</h3>
+        <form id="addPropertyForm">
+            <input type="text" id="propertyName" name="property_name" placeholder="Property Name" required>
+            <select id="domainClass" name="domain_class_id" required>
+                <option value="" disabled selected>Select Domain Class</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="rangeClass" name="range_class_id" required>
+                <option value="" disabled selected>Select Range Class</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="namespaceSelectProperty" name="custom_namespace">
+                <option value="">Select Namespace</option>
+                {% for ns in namespaces %}
+                    <option value="{{ ns.uri }}">{{ ns.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="ontology_id" value="{{ ontology.id }}">
+            <button type="submit">Add Property</button>
+        </form>
+    </div>
+
+    <!-- Section for Adding Equivalent Classes -->
+    <div class="editor">
+        <h3>Add Equivalent Class</h3>
+        <form id="addEquivalentClassForm">
+            <select id="classIdEq" name="class_id" required>
+                <option value="" disabled selected>Select Class</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="equivalentClassId" name="equivalent_class_id" required>
+                <option value="" disabled selected>Select Equivalent Class</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="ontology_id" value="{{ ontology.id }}">
+            <button type="submit">Add Equivalent Class</button>
+        </form>
+    </div>
+
+    <!-- Section for Adding Disjoint Classes -->
+    <div class="editor">
+        <h3>Add Disjoint Class</h3>
+        <form id="addDisjointClassForm">
+            <select id="classIdDisj" name="class_id" required>
+                <option value="" disabled selected>Select Class</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="disjointClassId" name="disjoint_class_id" required>
+                <option value="" disabled selected>Select Disjoint Class</option>
+                {% for cls in classes %}
+                    <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="ontology_id" value="{{ ontology.id }}">
+            <button type="submit">Add Disjoint Class</button>
+        </form>
+    </div>
+
+    <!-- Visualization Section -->
+    <div class="visualization">
+        <h3>Ontology Visualization</h3>
+        <div id="cy"></div>
+    </div>
+
+    <!-- Section for Downloading Ontology -->
+    <div class="editor">
+        <h3>Download Ontology</h3>
+        <form id="downloadOntologyForm" action="{{ url_for('export_ontology', id=ontology.id, format='ttl') }}" method="get">
+            <select name="format">
+                <option value="xml">RDF/XML</option>
+                <option value="ttl">Turtle</option>
+            </select>
+            <button type="submit">Download Ontology</button>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.21.0/cytoscape.min.js"></script>
+<script>
+// JavaScript code to handle form submission and sending data as JSON
+
+document.getElementById('addNamespaceForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const namespaceName = document.getElementById('namespaceName').value;
+    const namespaceUri = document.getElementById('namespaceUri').value;
+    const ontologyId = document.querySelector('input[name="ontology_id"]').value;
+
+    const data = {
+        namespace_name: namespaceName,
+        namespace_uri: namespaceUri,
+        ontology_id: ontologyId,
+    };
+
+    fetch('{{ url_for("add_namespace") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Namespace added:', data);
+        location.reload();
+    })
+    .catch((error) => {
+        console.error('Error:', error.message);
+    });
+});
+
+document.getElementById('addClassForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const className = document.getElementById('className').value;
+    const parentClass = document.getElementById('parentClass').value;
+    const customNamespace = document.getElementById('namespaceSelect').value;
+    const ontologyId = document.querySelector('input[name="ontology_id"]').value;
+
+    const data = {
+        class_name: className,
+        ontology_id: ontologyId,
+        parent_id: parentClass || null,
+        custom_namespace: customNamespace || null,
+    };
+
+    fetch('{{ url_for("add_class") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Class added:', data);
+        socket.emit('class_added', data);
+        location.reload();
+    })
+    .catch((error) => {
+        console.error('Error:', error.message);
+    });
+});
+
+document.getElementById('addSubclassForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const subclassName = document.getElementById('subclassName').value;
+    const parentClassId = document.getElementById('parentClassSubclass').value;
+    const customNamespace = document.getElementById('namespaceSelectSubclass').value;
+    const ontologyId = document.querySelector('input[name="ontology_id"]').value;
+
+    const data = {
+        class_name: subclassName,
+        ontology_id: ontologyId,
+        parent_class_id: parentClassId,
+        custom_namespace: customNamespace || null,
+    };
+
+    fetch('{{ url_for("add_subclass") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Subclass added:', data);
+        socket.emit('subclass_added', data);
+        location.reload();
+    })
+    .catch((error) => {
+        console.error('Error:', error.message);
+    });
+});
+
+document.getElementById('addPropertyForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const propertyName = document.getElementById('propertyName').value;
+    const domainClass = document.getElementById('domainClass').value;
+    const rangeClass = document.getElementById('rangeClass').value;
+    const customNamespace = document.getElementById('namespaceSelectProperty').value;
+    const ontologyId = document.querySelector('input[name="ontology_id"]').value;
+
+    const data = {
+        property_name: propertyName,
+        ontology_id: ontologyId,
+        domain_class_id: domainClass,
+        range_class_id: rangeClass,
+        custom_namespace: customNamespace || null,
+    };
+
+    fetch('{{ url_for("add_property") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Property added:', data);
+        socket.emit('property_added', data);
+        location.reload();
+    })
+    .catch((error) => {
+        console.error('Error:', error.message);
+    });
+});
+
+document.getElementById('addEquivalentClassForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const classId = document.getElementById('classIdEq').value;
+    const equivalentClassId = document.getElementById('equivalentClassId').value;
+    const ontologyId = document.querySelector('input[name="ontology_id"]').value;
+
+    const data = {
+        class_id: classId,
+        equivalent_class_id: equivalentClassId,
+        ontology_id: ontologyId,
+    };
+
+    fetch('{{ url_for("add_equivalent_class") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Equivalent class added:', data);
+        socket.emit('equivalent_class_added', data);
+        location.reload();
+    })
+    .catch((error) => {
+        console.error('Error:', error.message);
+    });
+});
+
+document.getElementById('addDisjointClassForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const classId = document.getElementById('classIdDisj').value;
+    const disjointClassId = document.getElementById('disjointClassId').value;
+    const ontologyId = document.querySelector('input[name="ontology_id"]').value;
+
+    const data = {
+        class_id: classId,
+        disjoint_class_id: disjointClassId,
+        ontology_id: ontologyId,
+    };
+
+    fetch('{{ url_for("add_disjoint_class") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Disjoint class added:', data);
+        socket.emit('disjoint_class_added', data);
+        location.reload();
+    })
+    .catch((error) => {
+        console.error('Error:', error.message);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: [],
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    'label': 'data(label)',
+                    'background-color': '#666',
+                    'text-valign': 'center',
+                    'text-halign': 'center'
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'label': 'data(label)',
+                    'width': 2,
+                    'line-color': '#ccc',
+                    'target-arrow-color': '#ccc',
+                    'target-arrow-shape': 'triangle',
+                }
+            }
+        ],
+        layout: {
+            name: 'cose',
+            fit: true,
+            padding: 10,
+            animate: true
+        }
+    });
+
+    const ontologyId = {{ ontology.id }};
+    fetch(`/ontology/${ontologyId}/graph`)
+        .then(response => response.json())
+        .then(elements => {
+            cy.add(elements);
+            cy.layout({ name: 'cose' }).run();
+        });
+
+    socket.on('class_added', function(data) {
+        cy.add({
+            data: { id: data.id, label: data.name }
+        });
+        cy.layout({ name: 'cose' }).run();
+    });
+
+    socket.on('subclass_added', function(data) {
+        cy.add([
+            { data: { id: data.subclass.id, label: data.subclass.name }},
+            { data: { source: data.subclass.parent_id, target: data.subclass.id }}
+        ]);
+        cy.layout({ name: 'cose' }).run();
+    });
+
+    socket.on('property_added', function(data) {
+        cy.add([
+            { data: { id: data.property.id, label: data.property.name }},
+            { data: { source: data.property.domain_class_id, target: data.property.range_class_id, label: data.property.name }}
+        ]);
+        cy.layout({ name: 'cose' }).run();
+    });
+
+    socket.on('equivalent_class_added', function(data) {
+        cy.add([
+            { data: { source: data.equivalent_class.class_id, target: data.equivalent_class.equivalent_class_id }}
+        ]);
+        cy.layout({ name: 'cose' }).run();
+    });
+
+    socket.on('disjoint_class_added', function(data) {
+        cy.add([
+            { data: { source: data.disjoint_class.class_id, target: data.disjoint_class.disjoint_class_id }}
+        ]);
+        cy.layout({ name: 'cose' }).run();
+    });
+});
+</script>
+
+<style>
+#cy {
+    width: 100%;
+    height: 600px;
+    border: 1px solid #ccc;
+    margin-top: 20px;
+}
+</style>
+
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script>
+    // Initialize the socket connection
+    const socket = io();
+
+    // Event listeners and other socket-related code are already integrated above
+    // in each form submission and document load event.
+</script>
+
+{% endblock %}

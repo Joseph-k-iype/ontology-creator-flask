@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Create a new Ontology</h2>
+    <form action="{{ url_for('create_ontology') }}" method="POST">
+        <input type="text" name="name" placeholder="Ontology Name" required>
+        <button type="submit">Create</button>
+    </form>
+
+    <h2>Your Ontologies</h2>
+    <ul>
+        {% for ontology in ontologies %}
+        <li><a href="{{ url_for('view_ontology', id=ontology.id) }}">{{ ontology.name }}</a></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
